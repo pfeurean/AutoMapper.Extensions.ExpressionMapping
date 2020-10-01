@@ -1,14 +1,13 @@
-﻿using System;
+﻿using Shouldly;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using Shouldly;
 using Xunit;
-using AutoMapper;
 
 namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
 {
-    using Configuration.Internal;
+    using AutoMapper.Internal;
 
     public class XpressionMapperTests
     {
@@ -209,9 +208,9 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
         {
             //Arrange
             ParameterExpression userParam = Expression.Parameter(typeof(UserModel), "s");
-            MemberExpression accountModelProperty = Expression.MakeMemberAccess(userParam, PrimitiveHelper.GetFieldOrProperty(typeof(UserModel), "AccountModel"));
-            MemberExpression branchModelProperty = Expression.MakeMemberAccess(accountModelProperty, PrimitiveHelper.GetFieldOrProperty(typeof(AccountModel), "Branch"));
-            MemberExpression nameProperty = Expression.MakeMemberAccess(branchModelProperty, PrimitiveHelper.GetFieldOrProperty(typeof(BranchModel), "Name"));
+            MemberExpression accountModelProperty = Expression.MakeMemberAccess(userParam, TypeExtensions.GetFieldOrProperty(typeof(UserModel), "AccountModel"));
+            MemberExpression branchModelProperty = Expression.MakeMemberAccess(accountModelProperty, TypeExtensions.GetFieldOrProperty(typeof(AccountModel), "Branch"));
+            MemberExpression nameProperty = Expression.MakeMemberAccess(branchModelProperty, TypeExtensions.GetFieldOrProperty(typeof(BranchModel), "Name"));
 
             //{s => (IIF((IIF((s.AccountModel == null), null, s.AccountModel.Branch) == null), null, s.AccountModel.Branch.Name) == "Leeds")}
             Expression<Func<UserModel, bool>> selection = Expression.Lambda<Func<UserModel, bool>>
@@ -255,7 +254,7 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
             //Arrange
             //Expression<Func<UserModel, bool>> selection = s => s != null && s.AccountModel != null && s.AccountModel.Bal > 555.20;
             ParameterExpression userParam = Expression.Parameter(typeof(UserModel), "s");
-            MemberExpression accountModelProperty = Expression.MakeMemberAccess(userParam, PrimitiveHelper.GetFieldOrProperty(typeof(UserModel), "AccountModel"));
+            MemberExpression accountModelProperty = Expression.MakeMemberAccess(userParam, TypeExtensions.GetFieldOrProperty(typeof(UserModel), "AccountModel"));
             Expression<Func<UserModel, bool>> selection = Expression.Lambda<Func<UserModel, bool>>
                 (
                     Expression.AndAlso
@@ -267,7 +266,7 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
                                 ),
                             Expression.GreaterThan
                                 (
-                                    Expression.MakeMemberAccess(accountModelProperty, PrimitiveHelper.GetFieldOrProperty(typeof(AccountModel), "Bal")),
+                                    Expression.MakeMemberAccess(accountModelProperty, TypeExtensions.GetFieldOrProperty(typeof(AccountModel), "Bal")),
                                     Expression.Constant(555.20, typeof(double))
                                 )
                         ),
@@ -702,6 +701,54 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
 
             //Assert
             Assert.True(accounts.Count == 2);
+        }
+
+        [Fact]
+        public void Map_accountModel_to_account_with_local_nullables()
+        {
+            DateTime? firstReleaseDate = null;
+            DateTime? lastReleaseDate = null;
+
+            Expression<Func<AccountModel, bool>> exp = x => (firstReleaseDate == null || x.DateCreated >= firstReleaseDate) &&
+                                      (lastReleaseDate == null || x.DateCreated <= lastReleaseDate);
+
+            //Act
+            Expression<Func<Account, bool>> expMapped = mapper.MapExpression<Expression<Func<Account, bool>>>(exp);
+
+            //Assert
+            Assert.NotNull(expMapped);
+        }
+
+        [Fact]
+        public void Map_ItemDto_to_ItemDto_with_local_nullables()
+        {
+            DateTime? firstReleaseDate = new DateTime();
+            DateTime? lastReleaseDate = new DateTime();
+
+            Expression<Func<ItemDto, bool>> exp = x => (firstReleaseDate == null || x.CreateDate >= firstReleaseDate) &&
+                                      (lastReleaseDate == null || x.CreateDate <= lastReleaseDate);
+
+            //Act
+            Expression<Func<Item, bool>> expMapped = mapper.MapExpression<Expression<Func<Item, bool>>>(exp);
+
+            //Assert
+            Assert.NotNull(expMapped);
+        }
+
+        [Fact]
+        public void Map_ItemDto_to_ItemDto_with_local_literal_types()
+        {
+            DateTime firstReleaseDate = new DateTime();
+            DateTime lastReleaseDate = new DateTime();
+
+            Expression<Func<ItemDto, bool>> exp = x => (firstReleaseDate == null || x.CreateDate >= firstReleaseDate) &&
+                                      (lastReleaseDate == null || x.CreateDate <= lastReleaseDate);
+
+            //Act
+            Expression<Func<Item, bool>> expMapped = mapper.MapExpression<Expression<Func<Item, bool>>>(exp);
+
+            //Assert
+            Assert.NotNull(expMapped);
         }
 
         [Fact]
@@ -1391,7 +1438,6 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
                 .ForMember(d => d.Bal, opt => opt.MapFrom(s => s.Balance))
                 .ForMember(d => d.DateCreated, opt => opt.MapFrom(s => Helpers.TruncateTime(s.CreateDate).Value))
                 .ForMember(d => d.Description, opt => opt.MapFrom(s => string.Concat(s.Type, " ", s.Number)))
-                //.ForMember(d => d.ComboName, opt => opt.ResolveUsing<CustomResolver>())
                 .ForMember(d => d.ThingModels, opt => opt.MapFrom(s => s.Things))
                 .ForMember(d => d.UserModels, opt => opt.MapFrom(s => s.Users));
 
@@ -1399,6 +1445,8 @@ namespace AutoMapper.Extensions.ExpressionMapping.UnitTests
                 .ForMember(d => d.Balance, opt => opt.MapFrom(s => s.Bal))
                 .ForMember(d => d.Things, opt => opt.MapFrom(s => s.ThingModels))
                 .ForMember(d => d.Users, opt => opt.MapFrom(s => s.UserModels));
+
+            CreateMap<BranchModel, Branch>();
 
             CreateMap<Thing, ThingModel>()
                 .ForMember(d => d.FooModel, opt => opt.MapFrom(s => s.Foo))
